@@ -1,0 +1,273 @@
+# Quality chek via FastQC
+fastqc --threads 4 --outdir fastqc_results *.fastq.gz
+
+# Trimming vis Fastp
+fastp -i Control_S8_R1.fastq.gz -I Control_S8_R2.fastq.gz \
+-o Control_S8_R1.clean.fastq.gz -O Control_S8_R2.clean.fastq.gz \
+--detect_adapter_for_pe \
+--cut_by_quality3 --cut_window_size 4 --cut_mean_quality 20 \
+--length_required 50 \
+--thread 8 --html fastp_report.html --json fastp_report.json
+
+# Remove the host gene
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/001/660/625/GCF_001660625.3_Coco_2.0/GCF_001660625.3_Coco_2.0_genomic.fna.gz   # Download channel catfish genome from NCBI (example)
+gunzip GCF_001660625.3_Coco_2.0_genomic.fna.gz  # Unzip the file
+bowtie2-build genome.fna genome_db   # Build Bowtie2 host genome index
+
+bowtie2 --threads 8 \                    # Align with host genome via Bowtie2
+-x ./genome_db \
+-1 Control_S8_R1.clean.fastq.gz \
+-2 Control_S8_R2.clean.fastq.gz \
+-S Control_S8_host.sam 
+
+samtools view -f 12 -b Control_S8_host.sam > Control_S8_host_unmap.bam    # Convert SAM file to BAM file
+
+# Convert the bam file to fq file
+samtools fastq \
+-1 Control_S8_host_unmap_R1.clean.fastq.gz \
+-2 Control_S8_host_unmap_R2.clean.fastq.gz \
+Control_S8_host_unmap.bam
+
+# Species composition and abundance analysis
+kraken2 \
+--threads 12 \
+--quick \
+--paired \
+--db ./k2_pluspf_20210517/ \
+--report Control_S8.kreport \
+--output Control_S8.kraken \
+Control_S8_host_unmap_R1.clean.fastq.gz \
+Control_S8_host_unmap_R2.clean.fastq.gz
+
+# Make biome file
+kraken-biom Control_S1.kreport Control_S8.kreport SingleAbx_S2.kreport SingleAbx_S3.kreport SingleAbx_S4.kreport --fmt json -o output.biom
+
+# Map clean data via megahit
+megahit \
+-1 Control_S8_host_unmap_R1.clean.fastq.gz \
+-2 Control_S8_host_unmap_R2.clean.fastq.gz \
+--min-contig-len 500 \
+--tmp-dir ./ \
+--memory 12 \
+--num-cpu-threads 12 \
+--out-dir S8_megahit \
+--out-prefix S8
+
+# Diversity Analysis 
+# ====== Load Libraries ======
+library(phyloseq)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(tibble)
+library(scales)
+library(patchwork)
+
+# ====== Import Data ======
+physeq_raw <- import_biom("output.biom")
+metadata <- read.csv("metadata.csv", row.names = 1, check.names = FALSE)
+sample_data(physeq_raw) <- sample_data(metadata)
+
+# ====== Clean Taxonomy ======
+tax_table(physeq_raw) <- apply(tax_table(physeq_raw), 2, function(x) sub("^[a-z]__", "", x))
+colnames(tax_table(physeq_raw)) <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+
+# ====== Filter Bacteria ======
+physeq_filtered <- subset_taxa(physeq_raw, Kingdom == "Bacteria" & !grepl("Homo sapiens", Species, ignore.case = TRUE))
+physeq_rel <- transform_sample_counts(physeq_filtered, function(x) x / sum(x))
+
+# ====== Define swapped color palette ======
+top15_colors <- c(
+  "#2b8cbe",  # swapped: was #045a8d
+  "#1b9e77",  # swapped: was #d7301f
+  "#7bccc4",
+  "#e34a33",
+  "#045a8d",  # swapped: was #2b8cbe
+  "#fec44f",
+  "#fdbb84",
+  "#fc8d59",
+  "#78c679",
+  "#41ab5d",
+  "#d7301f",  # swapped: was #1b9e77
+  "#fdae61",
+  "#66c2a5",
+  "#a6761d",
+  "#666666"
+)
+
+
+# ====== PHYLUM ======
+physeq_phylum <- tax_glom(physeq_rel, taxrank = "Phylum")
+df_phylum <- psmelt(physeq_phylum)
+df_phylum$Phylum <- as.character(df_phylum$Phylum)
+
+top15_phyla <- df_phylum %>%
+  group_by(Phylum) %>%
+  summarise(Total = sum(Abundance)) %>%
+  arrange(desc(Total)) %>%
+  slice(1:15) %>%
+  pull(Phylum)
+
+df_phylum <- df_phylum %>%
+  mutate(Phylum = ifelse(Phylum %in% top15_phyla, Phylum, "Others"))
+
+df_phylum_sum <- df_phylum %>%
+  group_by(Sample, Phylum) %>%
+  summarise(Abundance = sum(Abundance), .groups = "drop") %>%
+  group_by(Sample) %>%
+  mutate(RelAbundance = Abundance / sum(Abundance) * 100) %>%
+  ungroup() %>%
+  left_join(metadata %>% rownames_to_column("Sample"), by = "Sample")
+
+phylum_colors <- c(top15_colors, "gray70")
+names(phylum_colors) <- c(top15_phyla, "Others")
+
+phylum_plot <- ggplot(df_phylum_sum, aes(x = `Sample Name`, y = RelAbundance, fill = Phylum)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = phylum_colors) +
+  scale_y_continuous(labels = percent_format(scale = 1)) +
+  labs(x = "Sample Replicates", y = "Relative Abundance (%)", title = "A", fill = "Phylum") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 13, face = "bold"),
+    axis.text.y = element_text(size = 13, face = "bold"),
+    axis.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", hjust = 0),
+    legend.text = element_text(size = 13, face = "bold"),
+    legend.title = element_text(size = 14, face = "bold")
+  )
+
+# ====== CLASS ======
+physeq_class <- tax_glom(physeq_rel, taxrank = "Class")
+df_class <- psmelt(physeq_class)
+df_class$Class <- as.character(df_class$Class)
+
+top15_class <- df_class %>%
+  group_by(Class) %>%
+  summarise(Total = sum(Abundance)) %>%
+  arrange(desc(Total)) %>%
+  slice(1:15) %>%
+  pull(Class)
+
+df_class <- df_class %>%
+  mutate(Class = ifelse(Class %in% top15_class, Class, "Others"))
+
+df_class_sum <- df_class %>%
+  group_by(Sample, Class) %>%
+  summarise(Abundance = sum(Abundance), .groups = "drop") %>%
+  group_by(Sample) %>%
+  mutate(RelAbundance = Abundance / sum(Abundance) * 100) %>%
+  ungroup() %>%
+  left_join(metadata %>% rownames_to_column("Sample"), by = "Sample")
+
+class_colors <- c(top15_colors, "gray70")
+names(class_colors) <- c(top15_class, "Others")
+
+class_plot <- ggplot(df_class_sum, aes(x = `Sample Name`, y = RelAbundance, fill = Class)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = class_colors) +
+  scale_y_continuous(labels = percent_format(scale = 1)) +
+  labs(x = "Sample Replicates", y = "Relative Abundance (%)", title = "B", fill = "Class") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 13, face = "bold"),
+    axis.text.y = element_text(size = 13, face = "bold"),
+    axis.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", hjust = 0),
+    legend.text = element_text(size = 13, face = "bold"),
+    legend.title = element_text(size = 14, face = "bold")
+  )
+
+# ====== GENUS ======
+physeq_genus <- tax_glom(physeq_rel, taxrank = "Genus")
+df_genus <- psmelt(physeq_genus)
+df_genus$Genus <- as.character(df_genus$Genus)
+
+top15_genus <- df_genus %>%
+  group_by(Genus) %>%
+  summarise(Total = sum(Abundance)) %>%
+  arrange(desc(Total)) %>%
+  slice(1:15) %>%
+  pull(Genus)
+
+df_genus <- df_genus %>%
+  mutate(Genus = ifelse(Genus %in% top15_genus, Genus, "Others"))
+
+df_genus_sum <- df_genus %>%
+  group_by(Sample, Genus) %>%
+  summarise(Abundance = sum(Abundance), .groups = "drop") %>%
+  group_by(Sample) %>%
+  mutate(RelAbundance = Abundance / sum(Abundance) * 100) %>%
+  ungroup() %>%
+  left_join(metadata %>% rownames_to_column("Sample"), by = "Sample")
+
+genus_colors <- c(top15_colors, "gray70")
+names(genus_colors) <- c(top15_genus, "Others")
+
+genus_plot <- ggplot(df_genus_sum, aes(x = `Sample Name`, y = RelAbundance, fill = Genus)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = genus_colors) +
+  scale_y_continuous(labels = percent_format(scale = 1)) +
+  labs(x = "Sample Replicates", y = "Relative Abundance (%)", title = "C", fill = "Genus") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 13,, face = "bold"),
+    axis.text.y = element_text(size = 13, face = "bold"),
+    axis.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", hjust = 0),
+    legend.text = element_text(size = 12, face = "bold"),
+    legend.title = element_text(size = 13, face = "bold")
+  )
+
+# ====== SPECIES ======
+physeq_species <- tax_glom(physeq_rel, taxrank = "Species")
+df_species <- psmelt(physeq_species)
+df_species$GenusSpecies <- paste(df_species$Genus, df_species$Species)
+df_species$GenusSpecies <- gsub("NA NA", "Unclassified", df_species$GenusSpecies)
+df_species$GenusSpecies <- gsub(" NA", "", df_species$GenusSpecies)
+
+top15_gs <- df_species %>%
+  group_by(GenusSpecies) %>%
+  summarise(Total = sum(Abundance)) %>%
+  arrange(desc(Total)) %>%
+  slice(1:15) %>%
+  pull(GenusSpecies)
+
+df_species <- df_species %>%
+  mutate(GenusSpecies = ifelse(GenusSpecies %in% top15_gs, GenusSpecies, "Others"))
+
+df_species_sum <- df_species %>%
+  group_by(Sample, GenusSpecies) %>%
+  summarise(Abundance = sum(Abundance), .groups = "drop") %>%
+  group_by(Sample) %>%
+  mutate(RelAbundance = Abundance / sum(Abundance) * 100) %>%
+  ungroup() %>%
+  left_join(metadata %>% rownames_to_column("Sample"), by = "Sample")
+
+species_colors <- c(top15_colors, "gray70")
+names(species_colors) <- c(top15_gs, "Others")
+
+species_plot <- ggplot(df_species_sum, aes(x = `Sample Name`, y = RelAbundance, fill = GenusSpecies)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = species_colors) +
+  scale_y_continuous(labels = percent_format(scale = 1)) +
+  labs(x = "Sample Replicates", y = "Relative Abundance (%)", title = "D", fill = "Genus Species") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 13, face = "bold"),
+    axis.text.y = element_text(size = 13, face = "bold"),
+    axis.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", hjust = 0),
+    legend.text = element_text(size = 12, face = "bold"),
+    legend.title = element_text(size = 13, face = "bold")
+  )
+
+# ====== Combine Plots ======
+combined_plot <- (phylum_plot | class_plot) / (genus_plot | species_plot)
+combined_plot +
+  plot_annotation(title = "Taxonomic Composition",
+                  theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5)))
+
+
+
+
