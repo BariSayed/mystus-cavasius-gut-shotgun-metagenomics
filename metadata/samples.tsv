@@ -1,0 +1,16 @@
+# Sample sheet used by the scripts in scripts/.
+# One row per sample. 'sample' is the file-name stem of the paired FASTQ files
+# (<sample>_R1.fastq.gz / <sample>_R2.fastq.gz) and the stem used for all
+# per-sample outputs and for the .biom sample names.
+#
+# The 'sra_run' and 'group' columns are provisional. The deposited BioProject
+# PRJNA1282882 contains five runs (two controls, three treated); the mapping
+# between the internal sample labels below and the SRA run accessions is NOT
+# recorded in the paper or repository and must be confirmed by the authors.
+# See docs/REPRODUCIBILITY.md.
+sample	sra_run	group
+Control_S1	SRR34283204_or_SRR34283203	Control
+Control_S8	SRR34283204_or_SRR34283203	Control
+SingleAbx_S2	SRR34283202_or_SRR34283201_or_SRR34283200	Treatment
+SingleAbx_S3	SRR34283202_or_SRR34283201_or_SRR34283200	Treatment
+SingleAbx_S4	SRR34283202_or_SRR34283201_or_SRR34283200	Treatment

@@ -1,0 +1,58 @@
+cff-version: 1.2.0
+message: >-
+  If you use this pipeline or data, please cite both the software repository
+  and the associated peer-reviewed article below.
+title: Shotgun metagenomic analysis pipeline for the gut microbiome of antibiotic-treated Mystus cavasius
+abstract: >-
+  Bioinformatics pipeline (quality control, host-read removal, taxonomic
+  classification, metagenome assembly, and diversity/visualisation in R) used to
+  profile the gut microbiome of oxytetracycline-treated Mystus cavasius by
+  shotgun metagenomics.
+type: software
+authors:
+  - family-names: Begum
+    given-names: Mahmuda
+  - family-names: Barsha
+    given-names: Kaniz Fatema
+  - family-names: Rahman
+    given-names: Md. Mizanur
+  - family-names: Sarkar
+    given-names: Md. Murshed Hasan
+  - family-names: Chowdhury
+    given-names: Sanjana Fatema
+  - family-names: Bhowmik
+    given-names: Sanchita
+  - family-names: Shormi
+    given-names: Atia Shanjida
+  - family-names: Bari
+    given-names: Sayed Mashequl
+license: MIT
+repository-code: https://github.com/BariSayed/Shotgun-metagenomic-analysis-pipeline
+preferred-citation:
+  type: article
+  title: >-
+    Gut microbiome profiling of antibiotic-treated Mystus cavasius using
+    culture-based and shotgun metagenomic approaches
+  authors:
+    - family-names: Begum
+      given-names: Mahmuda
+    - family-names: Barsha
+      given-names: Kaniz Fatema
+    - family-names: Rahman
+      given-names: Md. Mizanur
+    - family-names: Sarkar
+      given-names: Md. Murshed Hasan
+    - family-names: Chowdhury
+      given-names: Sanjana Fatema
+    - family-names: Bhowmik
+      given-names: Sanchita
+    - family-names: Shormi
+      given-names: Atia Shanjida
+    - family-names: Bari
+      given-names: Sayed Mashequl
+  journal: Antonie van Leeuwenhoek
+  year: 2025
+  volume: 118
+  issue: 2
+  start: 183
+  doi: 10.1007/s10482-025-02195-5

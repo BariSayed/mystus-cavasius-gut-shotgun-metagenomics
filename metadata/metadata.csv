@@ -1,0 +1,10 @@
+# Row names (first column) MUST match the sample names in output.biom
+# (the Kraken2 report stems). The "Sample Name" column uses the paper-canonical
+# labels (CR = control, TR = treated); verify the row-name <-> CR/TR assignment
+# against the authors' records before use (see docs/REPRODUCIBILITY.md).
+,Sample Name,Group
+Control_S1,CR1,Control
+Control_S8,CR2,Control
+SingleAbx_S2,TR1,Treatment
+SingleAbx_S3,TR2,Treatment
+SingleAbx_S4,TR3,Treatment
