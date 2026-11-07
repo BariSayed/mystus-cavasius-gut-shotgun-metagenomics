@@ -1,0 +1,58 @@
+# ===== Raw and large sequence data (obtain from NCBI SRA; see data/README.md) =====
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.sam
+*.bam
+*.cram
+
+# ===== Reference genomes and classifier databases (download separately) =====
+*.fna
+*.fna.gz
+*.fa
+*.fasta
+*.bt2
+*.bt2l
+genome_db*
+k2_pluspf_*/
+k2_pluspf_*.tar.gz
+*.kraken
+*.k2d
+
+# ===== Assemblies and large intermediate outputs =====
+*_megahit/
+*_metaspades/
+*.biom
+
+# ===== Reports kept out of version control (regenerate from scripts) =====
+fastqc_results/
+multiqc_summary/
+*_fastp.html
+*_fastp.json
+*.report
+*.kreport
+krona/
+TAXONOMY_READS/
+
+# ===== Credentials / secrets (NEVER commit) =====
+*.key
+*.pem
+*.env
+.env
+*token*
+*secret*
+*password*
+credentials*
+
+# ===== OS / editor / language junk =====
+.DS_Store
+Thumbs.db
+*~
+*.swp
+.Rhistory
+.RData
+.Rproj.user/
+__pycache__/
+.ipynb_checkpoints/
+nohup.out
