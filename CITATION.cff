@@ -27,7 +27,7 @@ authors:
   - family-names: Bari
     given-names: Sayed Mashequl
 license: MIT
-repository-code: https://github.com/BariSayed/Shotgun-metagenomic-analysis-pipeline
+repository-code: https://github.com/BariSayed/mystus-cavasius-gut-shotgun-metagenomics
 preferred-citation:
   type: article
   title: >-
